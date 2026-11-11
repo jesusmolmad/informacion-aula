@@ -3,6 +3,8 @@
   const cfg = window.CLASSROOM_CONFIG;
   const $ = id => document.getElementById(id);
   const money = new Intl.NumberFormat("es-ES",{style:"currency",currency:"EUR"});
+  let lastAgendaItems = null;
+  let lastTaskItems = null;
 
   const escapeHtml = v => String(v ?? "").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[ch]));
   const escapeAttr = escapeHtml;
@@ -25,6 +27,24 @@
     }
     const single=parseDate(text);
     return single?{start:single,end:single}:null;
+  }
+  // Hora civil de España peninsular, independientemente de la zona del dispositivo.
+  function madridClockKey(){
+    const parts=new Intl.DateTimeFormat("en-GB",{
+      timeZone:"Europe/Madrid",year:"numeric",month:"2-digit",day:"2-digit",
+      hour:"2-digit",minute:"2-digit",hourCycle:"h23"
+    }).formatToParts(new Date());
+    const v=Object.fromEntries(parts.map(p=>[p.type,p.value]));
+    return Number(`${v.year}${v.month}${v.day}${v.hour}${v.minute}`);
+  }
+  function cutoffKey(date,hour){
+    // El registro se oculta al día siguiente a la hora indicada.
+    const next=new Date(date.getFullYear(),date.getMonth(),date.getDate()+1,12);
+    const pad=n=>String(n).padStart(2,"0");
+    return Number(`${next.getFullYear()}${pad(next.getMonth()+1)}${pad(next.getDate())}${pad(hour)}00`);
+  }
+  function isAfterCutoff(date,hour){
+    return Boolean(date) && madridClockKey()>=cutoffKey(date,hour);
   }
   function daysAfterEnd(str){
     const interval=agendaInterval(str);
@@ -85,11 +105,12 @@
     });
   }
   function renderAgenda(items){
+    lastAgendaItems=items;
     const box=$("agendaList"); if(!box)return;
     const visible=sortAgenda((items||[]).filter(i=>{
       if(["completado","cancelado"].includes(String(i.estado||"").toLowerCase()))return false;
-      const days=daysAfterEnd(i.fecha);
-      return days===null || days<=3;
+      const period=agendaInterval(i.fecha);
+      return !period || !isAfterCutoff(period.end,3);
     }));
     if(!visible.length){box.innerHTML='<div class="empty-state">No hay fechas próximas registradas.</div>';return}
     box.innerHTML=visible.map(i=>{
@@ -210,11 +231,12 @@
     return rows(payload).map(r=>({fecha:r.c?.[0]?.f??r.c?.[0]?.v??"",tarea:r.c?.[1]?.f??r.c?.[1]?.v??"",detalle:r.c?.[2]?.f??r.c?.[2]?.v??"",destinatarios:r.c?.[3]?.f??r.c?.[3]?.v??"",estado:r.c?.[4]?.f??r.c?.[4]?.v??"",enlace:r.c?.[5]?.f??r.c?.[5]?.v??""})).filter(t=>t.tarea);
   }
   function renderTasks(items){
+    lastTaskItems=items;
     const box=$("tasksList");if(!box)return;
-    const today=new Date();today.setHours(12,0,0,0);
     const active=(items||[]).filter(x=>{
       if(["completado","cancelado"].includes(String(x.estado||"").toLowerCase()))return false;
-      const d=parseDate(x.fecha);return !d || (today-d)/86400000<=3;
+      const d=parseDate(x.fecha);
+      return !d || !isAfterCutoff(d,10);
     }).sort((a,b)=>(parseDate(b.fecha)?.getTime()||0)-(parseDate(a.fecha)?.getTime()||0));
     if(!active.length){box.innerHTML='<div class="empty-state">No hay tareas recientes pendientes.</div>';return}
     let prior="";
@@ -305,6 +327,12 @@
     }
   });
   $("refreshButton")?.addEventListener("click",load);
+
+  // Recalcular la visibilidad al cambiar la hora, sin exigir pulsar Actualizar.
+  setInterval(()=>{
+    if(lastAgendaItems)renderAgenda(lastAgendaItems);
+    if(lastTaskItems)renderTasks(lastTaskItems);
+  },60*1000);
 
   renderBaseFallback();
   load();

@@ -129,3 +129,11 @@ Se ha cambiado la carga de datos para evitar el parpadeo de la agenda:
 Sección previa a la agenda alimentada desde la pestaña **Tareas para casa** de Google Sheets. Columnas: Fecha, Tarea, Detalle, Quién debe hacerla, Estado, Enlace y Observaciones.
 
 Las tareas más recientes aparecen primero. Pasados tres días después de su fecha, se ocultan automáticamente. Las tareas sin fecha permanecen hasta marcarlas como Completado o Cancelado.
+
+## Caducidad automática (V9)
+
+- Agenda: los eventos con fecha desaparecen a las **03:00 del día posterior a su fecha de finalización**. Si la fecha es un intervalo, se toma su último día.
+- Tareas para casa: desaparecen a las **10:00 del día siguiente** al de la tarea.
+- Las entradas sin fecha no caducan automáticamente; las que tienen estado Completado o Cancelado se ocultan.
+- Se usa el horario de `Europe/Madrid` y se vuelve a comprobar la visibilidad cada minuto incluso con la página abierta.
+- No se eliminan filas de Google Sheets; solo se filtran visualmente en la web.
